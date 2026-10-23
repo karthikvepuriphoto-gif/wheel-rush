@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b1530">
+<title>Wheel Rush – Steering Wheel Racing</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8F%8E%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head><body>
+<canvas id="gl"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="hudTop">
+    <div class="pill" id="hPos"><small>POS</small><b>1/6</b></div>
+    <div class="pill" id="hLap"><small>LAP</small><b>1/2</b></div>
+    <div class="pill" id="hTime"><small>TIME</small><b>0:00.0</b></div>
+    <div class="pill" id="hBest"><small>BEST LAP</small><b>--</b></div>
+    <div class="pill" id="hGap"><small id="hGapL">RECORD</small><b>+0.0</b></div>
+  </div>
+  <div id="hudRight">
+    <button id="bMute" class="ico" aria-label="Mute">🔊</button>
+    <button id="bPause" class="ico" aria-label="Pause">⏸</button>
+  </div>
+  <canvas id="mini" width="170" height="170"></canvas>
+  <div id="banner"></div>
+  <div id="count"></div>
+  <div id="pops"></div>
+  <!-- cockpit -->
+  <div id="dash">
+    <div id="speedBox"><b id="spd">0</b><small>MPH</small></div>
+    <div id="boostBox"><div id="boostFill"></div><small>⚡ BOOST</small></div>
+    <svg id="wheel" viewBox="-100 -100 200 200">
+      <circle r="88" fill="none" stroke="#1b1d24" stroke-width="18"/>
+      <circle r="88" fill="none" stroke="#3a3f4d" stroke-width="5"/>
+      <path d="M-80,10 L-28,18 L-20,40 L20,40 L28,18 L80,10" fill="none" stroke="#1b1d24" stroke-width="16" stroke-linejoin="round"/>
+      <path d="M0,40 L0,82" stroke="#1b1d24" stroke-width="16"/>
+      <circle r="24" fill="#2a2e38" stroke="#555b6b" stroke-width="3"/>
+      <circle r="9" id="wheelBadge" fill="#ff4d3d"/>
+      <rect x="-6" y="-97" width="12" height="16" rx="3" fill="#ff4d3d" id="wheelMark"/>
+    </svg>
+  </div>
+  <div id="ctl">
+    <button id="cLeft" class="tbtn">◀</button>
+    <button id="cRight" class="tbtn">▶</button>
+    <button id="cBrake" class="abtn">BRAKE</button>
+    <button id="cBoost" class="abtn boost">⚡ BOOST</button>
+  </div>
+  <div id="tiltRead"></div>
+</div>
+<div id="tiltHint">↩︎ Turn a little less!<small>Hold it sideways like a steering wheel to keep racing</small></div>
+
+<div id="sSplash" class="screen show">
+  <h1>🏎️ Wheel Rush</h1><p class="sub">Hold your iPad like a steering wheel and turn it to steer!</p>
+  <button class="big" id="bStart">▶ Start</button>
+  <p class="note">On iPhone/iPad, tap <b>Allow</b> for motion &amp; orientation so turning works.</p>
+</div>
+<div id="sTitle" class="screen">
+  <h1>🏎️ Wheel Rush</h1>
+  <div class="menu">
+    <button class="big" id="bRaceMode">🏁 Race</button>
+    <button class="big" id="bTTMode">⏱ Time Trial</button>
+    <button class="mid" id="bGarage">🎨 Garage</button>
+    <button class="mid" id="bSettings">⚙️ Settings</button>
+  </div>
+  <p class="sub">💰 <span class="cashv">0</span></p>
+</div>
+<div id="sTracks" class="screen">
+  <div class="top"><button class="back" data-go="sTitle">◀</button><h2 id="trTitle">Pick a course</h2><span>💰 <span class="cashv">0</span></span></div>
+  <div class="cards" id="trackList"></div>
+</div>
+<div id="sGarage" class="screen">
+  <div class="top"><button class="back" data-go="sTitle">◀</button><h2>Garage</h2><span>💰 <span class="cashv">0</span></span></div>
+  <div class="cards" id="carList"></div>
+  <div id="colors"></div>
+</div>
+<div id="sSettings" class="screen">
+  <div class="top"><button class="back" data-go="sTitle">◀</button><h2>Settings</h2><span></span></div>
+  <div class="set" id="setList"></div>
+</div>
+<div id="sPause" class="screen">
+  <h2>Paused</h2>
+  <div class="menu">
+    <button class="big" id="pResume">▶ Keep driving</button>
+    <button class="mid" id="pCenter">🎯 Center steering</button>
+    <label class="row">Turn sensitivity <input type="range" id="pSens" min="1" max="5" step="1"></label>
+    <button class="mid" id="pRestart">↻ Restart</button>
+    <button class="mid" id="pQuit">🏠 Menu</button>
+  </div>
+</div>
+<div id="sResult" class="screen">
+  <h2 id="rTitle">Finished!</h2>
+  <div id="rBody"></div>
+  <div class="menu row2"><button class="big" id="rAgain">↻ Again</button><button class="mid" id="rMenu">🏠 Menu</button></div>
+</div>
+<div id="rotate"><div>📱↻</div><p>Turn your device sideways<br>like a steering wheel</p><button class="mid" id="rotLock">🔒 Portrait Lock is on — turn the game sideways</button><button class="mid" id="rotGo">Play anyway</button><p class="note">Tip: Portrait Orientation Lock (Control Center) stops the screen flipping when you turn hard.</p></div>
+<script type="module" src="game.js"></script>
+</body></html>
