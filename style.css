@@ -76,3 +76,22 @@ body.rot90 #rotate,body.rotm90 #rotate{display:none!important}
 #sResult{justify-content:flex-start;overflow-y:auto;padding-top:max(14px,env(safe-area-inset-top))}
 #sResult .menu{margin-bottom:12px}
 @media (max-height:430px){#rBody{font-size:13px;line-height:1.25}#rBody p{margin:4px 0}#rBody p:first-child{font-size:19px!important}#sResult{gap:4px}#sResult h2{font-size:20px}}
+/* v2: low F1-style cockpit */
+#dash{height:auto}
+#dash::before{left:28%;right:28%;bottom:0;height:22px;border-radius:14px 14px 0 0;background:linear-gradient(#1c1f26,#0c0e12);box-shadow:0 -2px 8px rgba(0,0,0,.5)}
+#wheel{width:min(22vh,15vw);height:min(22vh,15vw);bottom:calc(-1 * min(22vh,15vw) * .42);opacity:.88}
+#speedBox{left:auto;right:calc(50% + min(22vh,15vw)/2 + 8px);bottom:6px;width:74px;height:46px;background:rgba(5,7,12,.7)}
+#speedBox b{font-size:22px}
+#boostBox{left:calc(50% + min(22vh,15vw)/2 + 8px);bottom:6px;width:84px;height:46px;background:rgba(5,7,12,.7)}
+body.nowheel #wheel{display:none}
+body.chase #wheel{display:none}body.chase #dash::before{display:none}
+@media (max-height:430px){#speedBox,#boostBox{height:38px;bottom:4px}#speedBox{width:62px;right:calc(50% + min(22vh,15vw)/2 + 6px);left:auto}#speedBox b{font-size:18px}#boostBox{width:70px}#dash::before{height:16px}}
+#sGarage{background:linear-gradient(rgba(5,10,25,0) 30%,rgba(5,10,25,.85) 70%);justify-content:flex-end;padding-bottom:10px}
+#sGarage .cards{margin-top:0}
+.card.mini{flex-basis:170px}.card.mini .inf{padding:6px 10px}
+#colors{align-items:center}
+#colors .col{width:34px;height:34px;border-radius:50%;border:3px solid #fff3}#colors .col.sel{border-color:#fff}
+#colors .stl{background:#ffffff22;border-radius:12px;padding:7px 12px;font-weight:800}#colors .stl.on{background:#3e73ff}
+.numsel{display:flex;align-items:center;gap:6px;background:#ffffff18;border-radius:12px;padding:3px 6px}.numsel button{background:#ffffff22;border-radius:8px;width:30px;height:30px;font-size:18px}.numsel b{min-width:38px}
+@media (max-height:430px){#colors .col{width:26px;height:26px}#sGarage .card .inf p{display:none}#colors .stl{padding:5px 9px;font-size:13px}}
+#colors .stl{width:auto;height:auto;border:0;white-space:nowrap}
