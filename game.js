@@ -9,10 +9,10 @@ const IS_TOUCH = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in win
 
 /* ---------------- data ---------------- */
 const COURSES = [
-  { id: 'coast', name: 'Sunny Coast', icon: '🏖️', desc: 'Palm trees, ocean breeze and easy curves.', seed: 11, R: 520, a: .16, k: 3, b: .08, m: 5, hill: 6, sky: 0x8fd3ff, fog: 0xbfe6ff, ground: 0x7cc96a, edge: 0xf2d79b, deco: 'palm', rec: 74, obs: ['cone', 'cone', 'box', 'puddle'] },
-  { id: 'city', name: 'Neon City', icon: '🏙️', desc: 'Tall buildings, barrels and puddles.', seed: 23, R: 560, a: .2, k: 4, b: .1, m: 2, hill: 2, sky: 0x9fb4d8, fog: 0xc7d3ea, ground: 0x5f6773, edge: 0x9aa2ad, deco: 'city', rec: 85, obs: ['cone', 'barrel', 'box', 'puddle'] },
-  { id: 'desert', name: 'Canyon Desert', icon: '🌵', desc: 'Long fast straights past red rocks and cactus.', seed: 37, R: 640, a: .24, k: 2, b: .12, m: 3, hill: 14, sky: 0xffd9a0, fog: 0xffe6c2, ground: 0xe0a66a, edge: 0xd28b52, deco: 'cactus', rec: 92, obs: ['barrel', 'box', 'cone', 'tumble'] },
-  { id: 'snow', name: 'Snowy Peaks', icon: '🏔️', desc: 'Pine forest, hills and snowballs on the road.', seed: 51, R: 600, a: .22, k: 5, b: .1, m: 3, hill: 22, sky: 0xcfe3f5, fog: 0xe6f0fa, ground: 0xf4f8fc, edge: 0xdfe8f2, deco: 'pine', rec: 100, obs: ['snowball', 'cone', 'barrel', 'puddle'] }
+  { id: 'coast', name: 'Sunny Coast', icon: '🏖️', desc: 'Palm trees, ocean breeze and easy curves.', seed: 11, R: 520, a: .16, k: 3, b: .08, m: 5, hill: 6, sky: 0x8fd3ff, fog: 0xbfe6ff, ground: 0x7cc96a, edge: 0xf2d79b, deco: 'palm', rec: 68, obs: ['cone', 'cone', 'box', 'puddle'] },
+  { id: 'city', name: 'Neon City', icon: '🏙️', desc: 'Tall buildings, barrels and puddles.', seed: 23, R: 560, a: .2, k: 4, b: .1, m: 2, hill: 2, sky: 0x9fb4d8, fog: 0xc7d3ea, ground: 0x5f6773, edge: 0x9aa2ad, deco: 'city', rec: 78, obs: ['cone', 'barrel', 'box', 'puddle'] },
+  { id: 'desert', name: 'Canyon Desert', icon: '🌵', desc: 'Long fast straights past red rocks and cactus.', seed: 37, R: 640, a: .24, k: 2, b: .12, m: 3, hill: 14, sky: 0xffd9a0, fog: 0xffe6c2, ground: 0xe0a66a, edge: 0xd28b52, deco: 'cactus', rec: 84, obs: ['barrel', 'box', 'cone', 'tumble'] },
+  { id: 'snow', name: 'Snowy Peaks', icon: '🏔️', desc: 'Pine forest, hills and snowballs on the road.', seed: 51, R: 600, a: .22, k: 5, b: .1, m: 3, hill: 22, sky: 0xcfe3f5, fog: 0xe6f0fa, ground: 0xf4f8fc, edge: 0xdfe8f2, deco: 'pine', rec: 90, obs: ['snowball', 'cone', 'barrel', 'puddle'] }
 ];
 const CARS = [
   { id: 'zippy', name: 'Zippy', icon: '🚗', desc: 'Easy to steer. A great first car.', spd: 1, acc: 1, hnd: 1.1, cost: 0 },
@@ -108,8 +108,11 @@ function readInput(dt) {
     let n = clamp(d / (full - DZ), -1, 1); n = .45 * n + .55 * n * Math.abs(n);
     tilt.val = lerp(tilt.val, n, Math.min(1, dt * 7)); steer = tilt.val; }
   else { const t = (keys.ArrowRight || keys.KeyD || touch.r ? 1 : 0) - (keys.ArrowLeft || keys.KeyA || touch.l ? 1 : 0); tilt.val = lerp(tilt.val, t, Math.min(1, dt * 5)); steer = tilt.val; wheelDeg = steer * 90; }
-  if (WR.autopilot) { steer = autoSteer(player); tilt.val = steer; wheelDeg = steer * 90; }
-  return { steer, wheelDeg, brake: !!(keys.Space || keys.ArrowDown || keys.KeyS || touch.brk), boost: !!(keys.ShiftLeft || keys.ShiftRight || keys.KeyB || keys.ArrowUp || touch.boost) };
+  if (WR.autopilot) { steer = autoSteer(player); tilt.val = steer; wheelDeg = steer * 90;
+    // kid-level boost: fire on straights when the meter has charge
+    if (player && player.boost > .3 && Math.abs(curvAt(player.s + 18)) < .001 && countT <= 0) keys._autoBoost = true; else keys._autoBoost = false;
+  }
+  return { steer, wheelDeg, brake: !!(keys.Space || keys.ArrowDown || keys.KeyS || touch.brk), boost: !!(keys.ShiftLeft || keys.ShiftRight || keys.KeyB || keys.ArrowUp || touch.boost || keys._autoBoost) };
 }
 
 /* ---------------- track ---------------- */
@@ -164,7 +167,11 @@ function decoInstances(kind, rnd, night) {
 /* ---------------- race setup ---------------- */
 let player, racers = [], obstacles = [], pickups = [], mode = 'race', curC = 0, raceTime = 0, countT = 0, LAPS = 2;
 let ghostRec = [], ghostPlay = null, ghostMesh = null, hood, pMesh, sunL, pacer = null, miniPath = null, endT = 0;
-const DIFF = { easy: { vmax: 46, ai: .9, drift: .25, assist: 1 }, normal: { vmax: 52, ai: 1, drift: .6, assist: .5 } };
+const DIFF = {
+  easy:   { vmax: 48, ai: .94, spread: .035, drift: .22, assist: 1,   aiBoost: .4,  look: 55, line: .9  },
+  normal: { vmax: 52, ai: 1.02, spread: .03,  drift: .55, assist: .5,  aiBoost: .6,  look: 65, line: .97 },
+  hard:   { vmax: 54, ai: 1.08, spread: .02,  drift: .7,  assist: .25, aiBoost: .8,  look: 75, line: 1.0 }
+};
 function carStats() { const c = CARS.find(x => x.id === S.car) || CARS[0]; return c; }
 function recordFor(ci) { const c = COURSES[ci], b = S.best[c.id]; return b && b < c.rec ? { t: b, mine: true } : { t: c.rec, mine: false }; }
 function setupRace(ci, m) {
@@ -188,7 +195,7 @@ function setupRace(ci, m) {
   const bt = new THREE.CanvasTexture(bc); bt.colorSpace = THREE.SRGBColorSpace; const ban = new THREE.Mesh(new THREE.BoxGeometry(2 * RW + 3.6, 1.4, .3), new THREE.MeshBasicMaterial({ map: bt })); ban.position.y = 7; arch.add(ban);
   arch.position.copy(T.P[0]); arch.lookAt(T.P[0].clone().add(T.TG[0])); scene.add(arch);
   // obstacles & pickups
-  obstacles = []; pickups = []; const orng = rngf(C.seed * 13), dens = S.set.diff === 'easy' ? 70 : 52;
+  obstacles = []; pickups = []; const orng = rngf(C.seed * 13), dens = S.set.diff === 'easy' ? 68 : S.set.diff === 'hard' ? 42 : 52;
   for (let s = 220; s < T.L - 80; s += dens * (0.7 + orng() * .6)) {
     const n = orng() < .3 ? 2 : 1; const lanes = [-5, -1.7, 1.7, 5].sort(() => orng() - .5);
     for (let k = 0; k < n; k++) { const type = C.obs[Math.floor(orng() * C.obs.length)], x = lanes[k] + (orng() - .5); const m = obstacleModel(type); scene.add(m); obstacles.push({ s, x, type, m, hit: false, fly: null }); }
@@ -202,9 +209,24 @@ function setupRace(ci, m) {
   const cs = carStats(), D = DIFF[S.set.diff];
   player = { s: 0, x: 0, v: 0, xd: 0, vmax: D.vmax * cs.spd, acc: 14 * cs.acc, hnd: cs.hnd, boost: .5, boostCap: cs.boost || 1, boostT: 0, wob: 0, lapStart: 0, lap: 0, laps: [], best: null, coins: 0, done: false, finishT: 0, isP: true, heading: 0 };
   racers = [player];
-  if (mode === 'race') { const names = ['Bolt', 'Sunny', 'Pip', 'Turbo', 'Maple'], cols = ['#0a84ff', '#34c759', '#ffd60a', '#ff2d92', '#ff9500'];
-    for (let i = 0; i < 5; i++) { const r = { s: -8 - i * 8 - (i % 2) * 4, x: (i % 2 ? 3.5 : -3.5), v: 0, xd: 0, tx: (i % 2 ? 3.5 : -3.5), vmax: D.vmax * cs.spd * D.ai * (0.93 + i * .025), wob: 0, name: names[i], lap: 0, done: false, finishT: 0, m: carModel(cols[i], false, [3, 11, 24, 48, 88][i]), col: cols[i] }; r.vmax = Math.min(r.vmax, D.vmax * 1.02); scene.add(r.m); racers.push(r); }
-    player.s = -48; player.x = -3.5; player.lapStart = 0; }
+  if (mode === 'race') {
+    const names = ['Bolt', 'Sunny', 'Pip', 'Turbo', 'Maple'], cols = ['#0a84ff', '#34c759', '#ffd60a', '#ff2d92', '#ff9500'], nums = [3, 11, 24, 48, 88];
+    // grid slots back from start/finish: P1 closest to start line
+    const slots = [-6, -14, -22, -30, -38, -46];
+    // shuffle skill ranks so the pack isn't identical every race
+    const skill = [0, 1, 2, 3, 4].sort(() => Math.random() - .5);
+    const grid = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - .5); // who starts where
+    let aiN = 0;
+    for (let g = 0; g < 6; g++) {
+      const who = grid[g], sx = (g % 2 ? 3.2 : -3.2);
+      if (who === 5) { player.s = slots[g]; player.x = sx; player.lapStart = 0; continue; }
+      const sk = skill[aiN], factor = D.ai * (1 - D.spread + sk * (2 * D.spread / 4)); // weaker→stronger across pack
+      const r = { s: slots[g], x: sx, v: 0, xd: 0, tx: sx * .4, vmax: D.vmax * cs.spd * factor, acc: 14 * cs.acc * (0.95 + sk * .02), hnd: (cs.hnd || 1) * (.95 + sk * .02),
+        boost: .35 + sk * .08, boostCap: 1, boostT: 0, wob: 0, name: names[aiN], lap: 0, done: false, finishT: 0,
+        m: carModel(cols[aiN], false, nums[aiN]), col: cols[aiN], skill: sk, aggression: .4 + sk * .12 };
+      scene.add(r.m); racers.push(r); aiN++;
+    }
+  }
   LAPS = mode === 'race' ? 2 : 3;
   // ghost
   ghostRec = []; ghostPlay = mode === 'tt' ? S.ghost[C.id] || null : null; ghostMesh = null;
@@ -271,28 +293,104 @@ $('pRestart').onclick = () => startRace(curC, mode); $('pQuit').onclick = () => 
 $('rAgain').onclick = () => startRace(curC, mode); $('rMenu').onclick = () => goMenu('sTitle');
 
 /* ---------------- AI / physics ---------------- */
-function obstacleAhead(r, range) { let best = null; for (const o of obstacles) { if (o.hit || o.type === 'puddle' && !r.isP) continue; let d = ((o.s - r.s) % T.L + T.L) % T.L; if (d > 2 && d < range && Math.abs(o.x - r.x) < 2.2 && (!best || d < best.d)) best = { o, d }; } return best; }
-function autoSteer(p) { // used by AI drivers and the test autopilot
-  let tx = p.tx != null ? p.tx : 0; const ob = obstacleAhead(p, 45);
-  if (ob) { const cand = [-5.5, -2, 2, 5.5].filter(x => !obstacles.some(o => !o.hit && Math.abs(o.x - x) < 2.3 && (((o.s - p.s) % T.L + T.L) % T.L) < 50)); if (cand.length) tx = cand.sort((a, b) => Math.abs(a - p.x) - Math.abs(b - p.x))[0]; p.tx = tx; }
-  return clamp((tx - p.x) * .5 - p.xd * .25, -1, 1);
+function laneClear(s0, x, range) {
+  for (const o of obstacles) {
+    if (o.hit || o.type === 'puddle') continue;
+    let d = ((o.s - s0) % T.L + T.L) % T.L;
+    if (d > 1 && d < range && Math.abs(o.x - x) < 2.1) return false;
+  }
+  return true;
+}
+function obstacleAhead(r, range) {
+  let best = null;
+  for (const o of obstacles) {
+    if (o.hit || o.type === 'puddle') continue;
+    let d = ((o.s - r.s) % T.L + T.L) % T.L;
+    if (d > 1.5 && d < range && Math.abs(o.x - r.x) < 2.2 && (!best || d < best.d)) best = { o, d };
+  }
+  return best;
+}
+function racingLine(s, line) {
+  // peek ahead and bias toward the inside of the upcoming bend
+  let cSum = 0;
+  for (let k = 8; k <= 50; k += 6) cSum += curvAt(s + k);
+  const side = -Math.sign(cSum) * clamp(Math.abs(cSum) * 90, 0, 1);
+  return clamp(side * 4.2 * line, -5.2, 5.2);
+}
+function carAhead(p, range) {
+  let best = null;
+  for (const o of racers) {
+    if (o === p || o.done) continue;
+    let d = ((o.s - p.s) % T.L + T.L) % T.L;
+    if (d > .5 && d < range && Math.abs(o.x - p.x) < 2.6 && (!best || d < best.d)) best = { o, d };
+  }
+  return best;
+}
+function autoSteer(p) {
+  // used by AI drivers and the test autopilot
+  const D = DIFF[S.set.diff], look = D.look;
+  let tx = racingLine(p.s, D.line);
+  // hold a preferred lane offset so the pack isn't single-file
+  if (p.laneOff == null) p.laneOff = (p.skill != null ? (p.skill - 2) * .7 : 0);
+  tx = clamp(tx + p.laneOff, -5.4, 5.4);
+  const ob = obstacleAhead(p, look);
+  if (ob) {
+    const cand = [-5.2, -2.6, 0, 2.6, 5.2].filter(x => laneClear(p.s, x, look + 10));
+    if (cand.length) tx = cand.sort((a, b) => Math.abs(a - p.x) - Math.abs(b - p.x) || Math.abs(a) - Math.abs(b))[0];
+    else tx = clamp(p.x + (ob.o.x < p.x ? 3 : -3), -5.5, 5.5);
+  }
+  // overtake / avoid slower car ahead
+  const ca = carAhead(p, 22);
+  if (ca && ca.d < 14) {
+    const side = ca.o.x >= 0 ? -1 : 1;
+    const passX = clamp(ca.o.x + side * 3.4, -5.3, 5.3);
+    if (laneClear(p.s, passX, 28)) tx = passX;
+  }
+  p.tx = lerp(p.tx != null ? p.tx : tx, tx, .35);
+  return clamp((p.tx - p.x) * .55 - p.xd * .3, -1, 1);
+}
+function aiThink(r, dt) {
+  const D = DIFF[S.set.diff];
+  r.boost = Math.min(1, (r.boost || 0) + dt * .018);
+  // draft when tucked behind someone
+  const ca = carAhead(r, 12);
+  if (ca && ca.d < 8 && Math.abs(ca.o.x - r.x) < 2) r.v = Math.min(r.v + 4 * dt, r.vmax * 1.08);
+  // boost on straights when chasing or being chased, and meter is ready
+  const curv = Math.abs(curvAt(r.s + 20));
+  const behind = player && ((player.s - r.s + T.L) % T.L) > T.L * .5; // player is ahead of us? use race gap
+  const gapToP = player ? ((player.s - r.s) % T.L + T.L) % T.L : 99;
+  const chasing = gapToP < 80 || gapToP > T.L - 40;
+  const want = curv < .0012 && r.boost > .25 && (chasing || Math.random() < D.aiBoost * .02) && countT <= 0;
+  if (want && r.boostT <= 0) { r.boostT = .2; r.boost -= .18; }
+  // occasional lane shuffle for pack racing (rarer on higher skill)
+  if (Math.random() < dt * (.12 - (r.skill || 0) * .015)) r.laneOff = clamp((r.laneOff || 0) + (Math.random() - .5) * 2.2, -3.5, 3.5);
 }
 function stepCar(r, dt, inp) {
   const D = DIFF[S.set.diff]; const P = r.isP;
   let vmax = r.vmax, steer;
-  if (P) { steer = inp.steer; if (inp.boost && r.boost > .02 && countT <= 0) { if (r.boostT <= 0) sfx.boost(); r.boostT = .15; r.boost = Math.max(0, r.boost - dt * .22 / r.boostCap); } }
-  else { steer = autoSteer(r); if (Math.random() < dt * .25) r.tx = clamp(r.tx + (Math.random() - .5) * 5, -5.5, 5.5); }
+  if (P) {
+    steer = inp.steer;
+    if (inp.boost && r.boost > .02 && countT <= 0) { if (r.boostT <= 0) sfx.boost(); r.boostT = .15; r.boost = Math.max(0, r.boost - dt * .22 / r.boostCap); }
+  } else {
+    aiThink(r, dt);
+    steer = autoSteer(r);
+  }
   if (r.boostT > 0) { r.boostT -= dt; vmax *= 1.35; }
   const off = Math.abs(r.x) > RW + .3; if (off) vmax = Math.min(vmax, 24);
   if (r.wob > 0) { r.wob -= dt; vmax *= .8; }
   if (P && inp.brake) r.v = Math.max(0, r.v - 30 * dt);
-  else if (r.v < vmax) r.v = Math.min(vmax, r.v + (r.acc || 14) * dt * (1 - r.v / (vmax * 1.15)) * 1.6); else r.v = Math.max(vmax, r.v - 12 * dt);
+  else if (r.v < vmax) r.v = Math.min(vmax, r.v + (r.acc || 14) * dt * (1 - r.v / (vmax * 1.15)) * 1.6);
+  else r.v = Math.max(vmax, r.v - 12 * dt);
   const grip = clamp(r.v / 18, .3, 1) * (r.hnd || 1);
-  const target = steer * 9.5 * grip - curvAt(r.s) * r.v * r.v * .05 * (P ? D.drift : 0);
-  r.xd = lerp(r.xd, target, Math.min(1, dt * 6)) + (r.wob > 0 ? Math.sin(r.wob * 30) * 2.5 * dt * 6 : 0) * 0;
-  if (P && Math.abs(r.x) > RW - 1 && Math.sign(r.x) === Math.sign(r.xd)) r.xd *= (1 - D.assist * .5); // gentle road assist
+  // AI get less lateral drift so they hold the racing line
+  const driftAmt = P ? D.drift : D.drift * .35;
+  const target = steer * 9.5 * grip - curvAt(r.s) * r.v * r.v * .05 * driftAmt;
+  r.xd = lerp(r.xd, target, Math.min(1, dt * (P ? 6 : 7.5)));
+  if (P && Math.abs(r.x) > RW - 1 && Math.sign(r.x) === Math.sign(r.xd)) r.xd *= (1 - D.assist * .5);
   r.x += r.xd * dt; if (Math.abs(r.x) > RW + 4) { r.x = Math.sign(r.x) * (RW + 4); r.xd = 0; }
   if (P && off) r.x -= Math.sign(r.x) * D.assist * 1.2 * dt;
+  // soft road pull for AI so they don't sit in the grass
+  if (!P && off) { r.x -= Math.sign(r.x) * 2.5 * dt; r.v *= (1 - .4 * dt); }
   r.s += r.v * dt; r.heading = Math.atan2(r.xd, Math.max(5, r.v));
 }
 function hitObstacles(p) {
@@ -317,7 +415,7 @@ function update(dt) {
   raceTime += dt;
   for (const r of racers) { if (r.done && !r.isP) { r.v = lerp(r.v, 20, dt); r.s += r.v * dt; continue; } const prevLap = Math.floor(r.s / T.L); stepCar(r, dt, inp); hitObstacles(r);
     if (prevLap < 0 && r.s >= 0 && r.isP) { r.lapStart = raceTime; ghostRec = []; }
-    if (Math.floor(r.s / T.L) > prevLap && prevLap >= 0) { if (r.isP) lapDone(r, raceTime); else r.lap++; if (r.lap >= LAPS && !r.done) { r.done = true; r.finishT = raceTime; if (r.isP) { endT = 1.2; } } } }
+    if (Math.floor(r.s / T.L) > prevLap && prevLap >= 0) { if (r.isP) lapDone(r, raceTime); else r.lap++; if (r.lap >= LAPS && !r.done) { r.done = true; r.finishT = raceTime; if (r.isP) { endT = 10; } } } }
   carCollide(); respawnObs(dt);
   const p = player;
   if (!p.done && p.s >= 0) { if (!ghostRec.length || raceTime - ghostRec.tt >= .1) { ghostRec.push([+(p.s % T.L).toFixed(2), +p.x.toFixed(2)]); ghostRec.tt = raceTime; } }
@@ -402,7 +500,7 @@ function seg(label, key, opts) { const r = document.createElement('div'); r.clas
   opts.forEach(([v, t]) => { const b = document.createElement('button'); b.textContent = t; if (S.set[key] === v) b.className = 'on'; b.onclick = () => { S.set[key] = v; save(); updateCtlMode(); setViewVis(); if (key === 'snd' && master) master.gain.value = v ? .5 : 0; renderSettings(); }; s.appendChild(b); }); r.appendChild(s); return r; }
 function renderSettings() { const el = $('setList'); el.innerHTML = '';
   el.append(seg('Steering', 'steer', [['tilt', '🔄 Turn device'], ['touch', '👆 Buttons']]), seg('Turn sensitivity', 'sens', [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']]), seg('Flip steering', 'inv', [[false, 'Normal'], [true, 'Flipped']]),
-    seg('Difficulty', 'diff', [['easy', '😊 Easy'], ['normal', '😎 Normal']]), seg('Record lights in Time Trial', 'pacerTT', [[true, 'On'], [false, 'Off']]), seg('Record lights in Race', 'pacerRace', [[true, 'On'], [false, 'Off']]),
+    seg('Difficulty', 'diff', [['easy', '😊 Easy'], ['normal', '😎 Normal'], ['hard', '🔥 Hard']]), seg('Record lights in Time Trial', 'pacerTT', [[true, 'On'], [false, 'Off']]), seg('Record lights in Race', 'pacerRace', [[true, 'On'], [false, 'Off']]),
     seg('Time of day', 'tod', [['day', '☀️ Day'], ['sunset', '🌅 Sunset'], ['night', '🌙 Night'], ['auto', '🔀 Mix']]), seg('Camera', 'view', [['cockpit', '🏎️ Cockpit'], ['chase', '🎥 Behind car']]), seg('Steering wheel on screen', 'wheel', [[true, 'Show'], [false, 'Hide']]), seg('Sound', 'snd', [[true, '🔊 On'], [false, '🔇 Off']]));
   const r = document.createElement('div'); r.className = 'row'; r.innerHTML = '<span>Hold the device like a wheel, then</span>'; const b = document.createElement('button'); b.className = 'mid'; b.textContent = '🎯 Center steering'; b.onclick = recenter; r.appendChild(b); el.appendChild(r); }
 
